@@ -14,6 +14,7 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JTextField;
+import javax.swing.SwingWorker;
 
 import com.glaurung.batMap.controller.SearchEngine;
 import com.glaurung.batMap.gui.MapperPanel;
@@ -35,6 +36,9 @@ public class SearchPanel extends MapperPanel implements ItemListener {
 
     private DefaultComboBoxModel listAllModel = new DefaultComboBoxModel();
     private JComboBox areaList = new JComboBox( listAllModel );
+
+    private SearchWorker currentSearchWorker;
+    private boolean areaListPopulated = false;
 
     public SearchPanel( SearchEngine engine ) {
         super( engine );
@@ -63,7 +67,10 @@ public class SearchPanel extends MapperPanel implements ItemListener {
         this.add( results );
         this.add( areaList );
         this.add( save );
-        populateAreaList();
+        if (!areaListPopulated) {
+            populateAreaList();
+            areaListPopulated = true;
+        }
     }
 
     @Override
@@ -82,7 +89,27 @@ public class SearchPanel extends MapperPanel implements ItemListener {
         searchText.setText(text);
     }
 
-    public List<String> searchForRoomsWith( String text ) {
+    public void searchForRoomsWith( String text ) {
+        // Cancel any in-progress search
+        if (currentSearchWorker != null && !currentSearchWorker.isDone()) {
+            currentSearchWorker.cancel( true );
+        }
+
+        model.removeAllElements();
+        model.addElement( new SearchResultItem( new Room( "results", "first slot placeholder", new Area( "Searching..." ) ) ) );
+
+        if (text.equals( "" )) {
+            model.removeAllElements();
+            model.addElement( new SearchResultItem( new Room( "results", "first slot placeholder", new Area( "Search" ) ) ) );
+            return;
+        }
+
+        searchText.setEnabled( false );
+        currentSearchWorker = new SearchWorker( text );
+        currentSearchWorker.execute();
+    }
+
+    public List<String> searchForRoomsSynchronous( String text ) {
         List<String> foundRooms = new LinkedList<String>();
 
         model.removeAllElements();
@@ -90,24 +117,23 @@ public class SearchPanel extends MapperPanel implements ItemListener {
         if (text.equals( "" )) {
             return foundRooms;
         }
-        //iterate through all areafiles, iterate through all rooms and look for texts, if matches, add to list
+
         List<String> areas = AreaDataPersister.listAreaNames( this.engine.getBaseDir() );
         try {
             for (String areaName : areas) {
                 AreaSaveObject aso = AreaDataPersister.loadData( this.engine.getBaseDir(), areaName );
                 Collection<Room> areaRooms = aso.getGraph().getVertices();
                 for (Room room : areaRooms) {
-                	if (room.getShortDesc() == null || room.getLongDesc() == null ) {
-                		// in case of bad room data, just skip it
-                		continue;
-                	}
-                	if (room.getLongDesc().toLowerCase().contains( text.toLowerCase() ) ||
+                    if (room.getShortDesc() == null || room.getLongDesc() == null) {
+                        continue;
+                    }
+                    if (room.getLongDesc().toLowerCase().contains( text.toLowerCase() ) ||
                             room.getShortDesc().toLowerCase().contains( text.toLowerCase() )) {
                         model.addElement( new SearchResultItem( room ) );
-                        
+
                         String roomString = room.getArea().getName() + ": " + room.getShortDesc();
-                        if (!foundRooms.contains(roomString)) {
-                            foundRooms.add(roomString);
+                        if (!foundRooms.contains( roomString )) {
+                            foundRooms.add( roomString );
                         }
                     }
                 }
@@ -126,21 +152,16 @@ public class SearchPanel extends MapperPanel implements ItemListener {
         listAllModel.addElement( new AreaListItem( new Room( "Area", "first slot placeholder", new Area( "Areas list" ) ) ) );
         List<String> areas = AreaDataPersister.listAreaNames( this.engine.getBaseDir() );
         Collections.sort( areas, String.CASE_INSENSITIVE_ORDER );
-        try {
-            for (String areaName : areas) {
-                AreaSaveObject aso = AreaDataPersister.loadData( this.engine.getBaseDir(), areaName );
-                Collection<Room> areaRooms = aso.getGraph().getVertices();
-                if (areaRooms.size() > 0) {
-                    listAllModel.addElement( new AreaListItem( areaRooms.iterator().next() ) );
-                }
-
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+        for (String areaName : areas) {
+            Room placeholder = new Room( "area_placeholder", areaName, new Area( areaName ) );
+            listAllModel.addElement( new AreaListItem( placeholder ) );
         }
+    }
 
+    public void refreshAreaList() {
+        areaListPopulated = false;
+        populateAreaList();
+        areaListPopulated = true;
     }
 
     public void toggleSaveAbility( boolean canSave ) {
@@ -168,6 +189,73 @@ public class SearchPanel extends MapperPanel implements ItemListener {
             }
         }
 
+    }
+
+    private class SearchWorker extends SwingWorker<List<String>, SearchResultItem> {
+
+        private final String searchTerm;
+
+        SearchWorker( String searchTerm ) {
+            this.searchTerm = searchTerm;
+        }
+
+        @Override
+        protected List<String> doInBackground() throws Exception {
+            List<String> foundRooms = new LinkedList<String>();
+            String lowerSearchTerm = searchTerm.toLowerCase();
+            List<String> areas = AreaDataPersister.listAreaNames( engine.getBaseDir() );
+
+            for (String areaName : areas) {
+                if (isCancelled()) {
+                    return foundRooms;
+                }
+                try {
+                    AreaSaveObject aso = AreaDataPersister.loadData( engine.getBaseDir(), areaName );
+                    Collection<Room> areaRooms = aso.getGraph().getVertices();
+                    for (Room room : areaRooms) {
+                        if (isCancelled()) {
+                            return foundRooms;
+                        }
+                        if (room.getShortDesc() == null || room.getLongDesc() == null) {
+                            continue;
+                        }
+                        if (room.getLongDesc().toLowerCase().contains( lowerSearchTerm ) ||
+                                room.getShortDesc().toLowerCase().contains( lowerSearchTerm )) {
+                            publish( new SearchResultItem( room ) );
+
+                            String roomString = room.getArea().getName() + ": " + room.getShortDesc();
+                            if (!foundRooms.contains( roomString )) {
+                                foundRooms.add( roomString );
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                }
+            }
+            return foundRooms;
+        }
+
+        @Override
+        protected void process( List<SearchResultItem> chunks ) {
+            for (SearchResultItem item : chunks) {
+                model.addElement( item );
+            }
+        }
+
+        @Override
+        protected void done() {
+            searchText.setEnabled( true );
+            if (isCancelled()) {
+                return;
+            }
+            if (model.getSize() <= 1) {
+                model.removeAllElements();
+                model.addElement( new SearchResultItem( new Room( "results", "first slot placeholder", new Area( "No results" ) ) ) );
+            }
+        }
     }
 
 }
