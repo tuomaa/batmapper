@@ -3,6 +3,8 @@ package com.glaurung.batMap.controller;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Point;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
 import java.awt.event.ItemEvent;
@@ -592,6 +594,11 @@ public class MapperEngine implements ItemListener, ComponentListener {
 
     public void sendToParty(String message){
         this.plugin.doCommand( "party say "+message.replace( this.corpsePanel.getDelim(), "," ) );
+    }
+
+    public void copyToClipboard(String message) {
+        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+          .setContents(new java.awt.datatransfer.StringSelection(message), null);
     }
 
     public void removeLabelFromCurrent(){
