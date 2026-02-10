@@ -360,7 +360,8 @@ public class MapperPickingGraphMousePlugin extends AbstractGraphMousePlugin
            String dirs = this.engine.checkDirsFromCurrentRoomTo(clickedRoom, false);
             Object[] options = {"Ok",
                     "Send to mud",
-                    "Send to party"};
+                    "Send to party",
+                    "Copy to clipboard"};
             int selection = JOptionPane.showOptionDialog(vv,
                     dirs,
                     "Dirs to "+clickedRoom.getShortDesc(),
@@ -370,9 +371,15 @@ public class MapperPickingGraphMousePlugin extends AbstractGraphMousePlugin
                     options,
                     options[0]);
             if( selection == 1){
+                // send to mud
                 this.engine.sendToMud( dirs );
             }else if(selection == 2){
+                // send to party
                 this.engine.sendToParty( this.engine.checkDirsFromCurrentRoomTo( clickedRoom, true ));
+            }
+            else if (selection == 3) {
+                // copy to clipboard
+                this.engine.copyToClipboard( this.engine.checkDirsFromCurrentRoomTo( clickedRoom, true ) );
             }
             return;
         }
