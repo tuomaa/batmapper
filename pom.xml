@@ -147,6 +147,63 @@
             </plugin>
 
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-schema-java</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}/generated-sources/sql/com/glaurung/batMap/io"/>
+                                <loadfile property="schema.sql.content" srcFile="${basedir}/src/main/sql/schema.sql">
+                                    <filterchain>
+                                        <tokenfilter>
+                                            <replacestring from="\" to="\\"/>
+                                            <replacestring from="&quot;" to="\&quot;"/>
+                                        </tokenfilter>
+                                        <striplinebreaks/>
+                                    </filterchain>
+                                </loadfile>
+                                <echo file="${project.build.directory}/generated-sources/sql/com/glaurung/batMap/io/DatabaseSchema.java"><![CDATA[package com.glaurung.batMap.io;
+
+/** Generated from src/main/sql/schema.sql -- do not edit. */
+public final class DatabaseSchema {
+    private DatabaseSchema() {}
+    public static final String SCHEMA = "${schema.sql.content}";
+}
+]]></echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>add-generated-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/sql</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
