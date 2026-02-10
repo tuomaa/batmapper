@@ -78,6 +78,7 @@ public class MapperPlugin extends BatClientPlugin implements BatClientPluginTrig
         clientWin.setVisible( true );
         this.getPluginManager().addProtocolListener( this );
         AreaDataPersister.migrateFilesToNewLocation( BASEDIR );
+        AreaDataPersister.initialize( BASEDIR );
         engine.setBaseDir( BASEDIR );
         searchEngine.setBaseDir( BASEDIR );
         clientWin.addComponentListener( engine );
@@ -146,7 +147,7 @@ public class MapperPlugin extends BatClientPlugin implements BatClientPluginTrig
     @Override
     public void clientExit() {
         this.engine.save();
-
+        AreaDataPersister.shutdown();
     }
 
     public void saveRipAction( String ripString ) {

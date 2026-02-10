@@ -179,6 +179,11 @@ public class Room implements Serializable {
         return this.label;
     }
 
+    public Set<String> getUsedExits() {
+        if (usedExits == null) usedExits = new HashSet<>();
+        return usedExits;
+    }
+
     public void useExit(String exit){
         if(usedExits == null){
             usedExits = new HashSet<>();

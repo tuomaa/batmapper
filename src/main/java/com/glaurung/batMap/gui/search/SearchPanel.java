@@ -4,8 +4,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,8 +17,8 @@ import javax.swing.SwingWorker;
 import com.glaurung.batMap.controller.SearchEngine;
 import com.glaurung.batMap.gui.MapperPanel;
 import com.glaurung.batMap.io.AreaDataPersister;
+import com.glaurung.batMap.io.SqliteAreaDatabase;
 import com.glaurung.batMap.vo.Area;
-import com.glaurung.batMap.vo.AreaSaveObject;
 import com.glaurung.batMap.vo.Room;
 
 public class SearchPanel extends MapperPanel implements ItemListener {
@@ -118,30 +116,16 @@ public class SearchPanel extends MapperPanel implements ItemListener {
             return foundRooms;
         }
 
-        List<String> areas = AreaDataPersister.listAreaNames( this.engine.getBaseDir() );
-        try {
-            for (String areaName : areas) {
-                AreaSaveObject aso = AreaDataPersister.loadData( this.engine.getBaseDir(), areaName );
-                Collection<Room> areaRooms = aso.getGraph().getVertices();
-                for (Room room : areaRooms) {
-                    if (room.getShortDesc() == null || room.getLongDesc() == null) {
-                        continue;
-                    }
-                    if (room.getLongDesc().toLowerCase().contains( text.toLowerCase() ) ||
-                            room.getShortDesc().toLowerCase().contains( text.toLowerCase() )) {
-                        model.addElement( new SearchResultItem( room ) );
+        List<SqliteAreaDatabase.SearchResult> results = AreaDataPersister.searchRooms( text );
+        for (SqliteAreaDatabase.SearchResult sr : results) {
+            Room room = new Room( sr.getShortDesc(), sr.getRoomId(), new Area( sr.getAreaName() ) );
+            room.setLongDesc( sr.getLongDesc() );
+            model.addElement( new SearchResultItem( room ) );
 
-                        String roomString = room.getArea().getName() + ": " + room.getShortDesc();
-                        if (!foundRooms.contains( roomString )) {
-                            foundRooms.add( roomString );
-                        }
-                    }
-                }
+            String roomString = sr.getAreaName() + ": " + sr.getShortDesc();
+            if (!foundRooms.contains( roomString )) {
+                foundRooms.add( roomString );
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         }
 
         return foundRooms;
@@ -202,37 +186,19 @@ public class SearchPanel extends MapperPanel implements ItemListener {
         @Override
         protected List<String> doInBackground() throws Exception {
             List<String> foundRooms = new LinkedList<String>();
-            String lowerSearchTerm = searchTerm.toLowerCase();
-            List<String> areas = AreaDataPersister.listAreaNames( engine.getBaseDir() );
 
-            for (String areaName : areas) {
+            List<SqliteAreaDatabase.SearchResult> results = AreaDataPersister.searchRooms( searchTerm );
+            for (SqliteAreaDatabase.SearchResult sr : results) {
                 if (isCancelled()) {
                     return foundRooms;
                 }
-                try {
-                    AreaSaveObject aso = AreaDataPersister.loadData( engine.getBaseDir(), areaName );
-                    Collection<Room> areaRooms = aso.getGraph().getVertices();
-                    for (Room room : areaRooms) {
-                        if (isCancelled()) {
-                            return foundRooms;
-                        }
-                        if (room.getShortDesc() == null || room.getLongDesc() == null) {
-                            continue;
-                        }
-                        if (room.getLongDesc().toLowerCase().contains( lowerSearchTerm ) ||
-                                room.getShortDesc().toLowerCase().contains( lowerSearchTerm )) {
-                            publish( new SearchResultItem( room ) );
+                Room room = new Room( sr.getShortDesc(), sr.getRoomId(), new Area( sr.getAreaName() ) );
+                room.setLongDesc( sr.getLongDesc() );
+                publish( new SearchResultItem( room ) );
 
-                            String roomString = room.getArea().getName() + ": " + room.getShortDesc();
-                            if (!foundRooms.contains( roomString )) {
-                                foundRooms.add( roomString );
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
+                String roomString = sr.getAreaName() + ": " + sr.getShortDesc();
+                if (!foundRooms.contains( roomString )) {
+                    foundRooms.add( roomString );
                 }
             }
             return foundRooms;
